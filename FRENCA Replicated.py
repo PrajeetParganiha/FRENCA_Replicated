@@ -545,15 +545,20 @@ class CompactSemComSystem(nn.Module):
             # Channel encoding
             encoded_signal = self.channel_encoder(semantic_features)
 
+            # We must normalize the batch to have average power of 1
+            # as assumed in the SNR noise calculation.
+            avg_batch_power = torch.mean(encoded_signal ** 2, dim=(-1), keepdim=True)
+            normalized_signal = encoded_signal / torch.sqrt(avg_batch_power + 1e-8)
+
             # Add channel noise
             if add_noise:
-                snr_reshaped = snr.view(-1, 1).expand_as(encoded_signal)
+                snr_reshaped = snr.view(-1, 1).expand_as(normalized_signal)
                 noise_power = 10 ** (-snr_reshaped / 10.0)
 
-                noise = torch.sqrt(noise_power) * torch.randn_like(encoded_signal)
-                received_signal = encoded_signal + noise
+                noise = torch.sqrt(noise_power) * torch.randn_like(normalized_signal)
+                received_signal = normalized_signal + noise
             else:
-                received_signal = encoded_signal
+                received_signal = normalized_signal
 
             # Channel decoding
             if user_type == 'high':
@@ -1150,3 +1155,4 @@ if __name__ == '__main__':
         print(f"Fatal error during visualization: {e}")
 
         clear_memory()
+
